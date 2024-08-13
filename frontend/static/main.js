@@ -1,72 +1,120 @@
-// Function that runs once the window is fully loaded
+let currentPostId = null;
+
 window.onload = function() {
-    // Attempt to retrieve the API base URL from the local storage
-    var savedBaseUrl = localStorage.getItem('apiBaseUrl');
-    // If a base URL is found in local storage, load the posts
+    var savedBaseUrl = localStorage.getItem('api-base-url');
     if (savedBaseUrl) {
         document.getElementById('api-base-url').value = savedBaseUrl;
         loadPosts();
     }
 }
 
-// Function to fetch all the posts from the API and display them on the page
 function loadPosts() {
-    // Retrieve the base URL from the input field and save it to local storage
     var baseUrl = document.getElementById('api-base-url').value;
-    localStorage.setItem('apiBaseUrl', baseUrl);
+    localStorage.setItem('api-base-url', baseUrl);
 
-    // Use the Fetch API to send a GET request to the /posts endpoint
     fetch(baseUrl + '/posts')
-        .then(response => response.json())  // Parse the JSON data from the response
-        .then(data => {  // Once the data is ready, we can use it
-            // Clear out the post container first
+        .then(response => response.json())
+        .then(data => {
             const postContainer = document.getElementById('post-container');
             postContainer.innerHTML = '';
 
-            // For each post in the response, create a new post element and add it to the page
             data.forEach(post => {
                 const postDiv = document.createElement('div');
                 postDiv.className = 'post';
-                postDiv.innerHTML = `<h2>${post.title}</h2><p>${post.content}</p>
-                <button onclick="deletePost(${post.id})">Delete</button>`;
+                postDiv.setAttribute('data-id', post.id);
+                postDiv.innerHTML = `
+                    <h2>ID: ${post.id}</h2>
+                    <input type="text" class="post-title" value="${post.title}" disabled />
+                    <textarea class="post-content" disabled>${post.content}</textarea>
+                    <button class="delete-button" onclick="deletePost(${post.id})">Delete</button>
+                    <button class="update-button" onclick="editPost(${post.id})">Edit</button>
+                    <button class="save-button" onclick="saveEdit(${post.id})" style="display:none;">Save</button>`;
                 postContainer.appendChild(postDiv);
             });
         })
-        .catch(error => console.error('Error:', error));  // If an error occurs, log it to the console
+        .catch(error => console.error('Error:', error));
 }
 
-// Function to send a POST request to the API to add a new post
-function addPost() {
-    // Retrieve the values from the input fields
+function editPost(postId) {
+    const postDiv = document.querySelector(`.post[data-id='${postId}']`);
+    const titleElement = postDiv.querySelector('.post-title');
+    const contentElement = postDiv.querySelector('.post-content');
+    const editButton = postDiv.querySelector('.update-button');
+    const saveButton = postDiv.querySelector('.save-button');
+
+    titleElement.disabled = false;
+    contentElement.disabled = false;
+    editButton.style.display = 'none';
+    saveButton.style.display = 'inline-block';
+}
+
+function saveEdit(postId) {
+    const postDiv = document.querySelector(`.post[data-id='${postId}']`);
+    const newTitle = postDiv.querySelector('.post-title').value;
+    const newContent = postDiv.querySelector('.post-content').value;
+
     var baseUrl = document.getElementById('api-base-url').value;
-    var postTitle = document.getElementById('post-title').value;
-    var postContent = document.getElementById('post-content').value;
 
-    // Use the Fetch API to send a POST request to the /posts endpoint
-    fetch(baseUrl + '/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: postTitle, content: postContent })
+    fetch(`${baseUrl}/posts/${postId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title: newTitle, content: newContent })
     })
-    .then(response => response.json())  // Parse the JSON data from the response
-    .then(post => {
-        console.log('Post added:', post);
-        loadPosts(); // Reload the posts after adding a new one
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to update post');
+        }
+        return response.json();
     })
-    .catch(error => console.error('Error:', error));  // If an error occurs, log it to the console
+    .then(updatedPost => {
+        console.log('Post updated:', updatedPost);
+        postDiv.querySelector('.post-title').value = updatedPost.title;
+        postDiv.querySelector('.post-content').value = updatedPost.content;
+
+        postDiv.querySelector('.post-title').disabled = true;
+        postDiv.querySelector('.post-content').disabled = true;
+        postDiv.querySelector('.update-button').style.display = 'inline-block';
+        postDiv.querySelector('.save-button').style.display = 'none';
+    })
+    .catch(error => console.error('Error:', error));
 }
 
-// Function to send a DELETE request to the API to delete a post
 function deletePost(postId) {
     var baseUrl = document.getElementById('api-base-url').value;
 
-    // Use the Fetch API to send a DELETE request to the specific post's endpoint
     fetch(baseUrl + '/posts/' + postId, {
         method: 'DELETE'
     })
     .then(response => {
         console.log('Post deleted:', postId);
-        loadPosts(); // Reload the posts after deleting one
+        loadPosts();
     })
-    .catch(error => console.error('Error:', error));  // If an error occurs, log it to the console
+    .catch(error => console.error('Error:', error));
+}
+
+function addPost() {
+    var baseUrl = document.getElementById('api-base-url').value;
+    var postTitle = document.getElementById('post-title').value;
+    var postContent = document.getElementById('post-content').value;
+
+    fetch(baseUrl + '/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: postTitle, content: postContent })
+    })
+    .then(response => response.json())
+    .then(post => {
+        console.log('Post added:', post);
+        loadPosts();
+        clearFields();
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function clearFields() {
+    document.getElementById('post-title').value = '';
+    document.getElementById('post-content').value = '';
+    currentPostId = null;
 }
