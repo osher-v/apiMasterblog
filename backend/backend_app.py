@@ -12,7 +12,27 @@ POSTS = [
 
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
-    return jsonify(POSTS)
+    sort_field = request.args.get('sort')
+    sort_direction = request.args.get('direction', 'asc')
+
+    # Validate the sort field parameter
+    if sort_field and sort_field not in ['title', 'content']:
+        return jsonify({'error': 'Invalid sort field. Must be "title" or "content".'}), 400
+
+    # Validate the sort direction parameter
+    if sort_direction not in ['asc', 'desc']:
+        return jsonify({'error': 'Invalid sort direction. Must be "asc" or "desc".'}), 400
+
+    # If no sort parameters are provided, return the original order
+    if not sort_field:
+        return jsonify(POSTS)
+
+    # Sort the posts by the selected field
+    reverse = (sort_direction == 'desc')
+    sorted_posts = sorted(POSTS, key=lambda post: post[sort_field].lower(), reverse=reverse)
+
+    return jsonify(sorted_posts)
+
 
 
 @app.route('/api/posts', methods=['POST'])
@@ -57,6 +77,20 @@ def update_post(post_id):
     post['content'] = data.get('content', post['content'])
 
     return jsonify(post), 200
+
+
+@app.route('/api/posts/search', methods=['GET'])
+def search_posts():
+    title_query = request.args.get('title', '').lower().strip()
+    content_query = request.args.get('content', '').lower().strip()
+
+    filtered_posts = [
+        post for post in POSTS
+        if (title_query and title_query in post['title'].lower()) or
+           (content_query and content_query in post['content'].lower())
+    ]
+
+    return jsonify(filtered_posts)
 
 
 if __name__ == '__main__':
